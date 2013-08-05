@@ -5,7 +5,7 @@
     <groupId>com.github.chrisbanes.actionbarpulltorefresh</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>0.6-SNAPSHOT</version>
+    <version>0.7-SNAPSHOT</version>
     <name>ActionBar-PullToRefresh Project</name>
     <description>A modern implementation of the pull-to-refresh for Android</description>
     <url>https://github.com/chrisbanes/ActionBar-PullToRefresh</url>
