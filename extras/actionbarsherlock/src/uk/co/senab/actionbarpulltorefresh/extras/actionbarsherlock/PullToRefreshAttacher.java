@@ -34,25 +34,21 @@ import android.view.animation.AnimationUtils;
 
 import java.util.WeakHashMap;
 
-import static uk.co.senab.actionbarpulltorefresh.extras.actionbarsherlock.R.anim.*;
-import static uk.co.senab.actionbarpulltorefresh.extras.actionbarsherlock.R.styleable.*;
-
 public class PullToRefreshAttacher extends
         uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher {
 
-    private static final int DEFAULT_ANIM_HEADER_IN = fade_in;
-    private static final int DEFAULT_ANIM_HEADER_OUT = fade_out;
-
-    private final Animation mHeaderInAnimation, mHeaderOutAnimation;
+    private static final int DEFAULT_ANIM_HEADER_IN = R.anim.fade_in;
+    private static final int DEFAULT_ANIM_HEADER_OUT = R.anim.fade_out;
 
     private static final WeakHashMap<Activity, PullToRefreshAttacher> ATTACHERS
             = new WeakHashMap<Activity, PullToRefreshAttacher>();
 
     public static PullToRefreshAttacher get(Activity activity) {
-        return get(activity, new Options());
+        return get(activity, new AbsOptions());
     }
 
-    public static PullToRefreshAttacher get(Activity activity, Options options) {
+    public static PullToRefreshAttacher get(Activity activity,
+            uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.Options options) {
         PullToRefreshAttacher attacher = ATTACHERS.get(activity);
         if (attacher == null) {
             attacher = new PullToRefreshAttacher(activity, options);
@@ -61,12 +57,9 @@ public class PullToRefreshAttacher extends
         return attacher;
     }
 
-    protected PullToRefreshAttacher(Activity activity, Options options) {
+    protected PullToRefreshAttacher(Activity activity,
+            uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.Options options) {
         super(activity, options);
-
-        // Create animations for use later
-        mHeaderInAnimation = AnimationUtils.loadAnimation(activity, options.headerInAnimation);
-        mHeaderOutAnimation = AnimationUtils.loadAnimation(activity, options.headerOutAnimation);
     }
 
     @Override
@@ -79,49 +72,17 @@ public class PullToRefreshAttacher extends
         return new AbsDefaultHeaderTransformer();
     }
 
-    @Override
-    protected void showHeaderView(View headerView, HeaderTransformer headerTransformer) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            super.hideHeaderView(headerView, headerTransformer);
-            return;
-        }
-
-        if (mHeaderInAnimation != null) {
-            headerView.startAnimation(mHeaderInAnimation);
-        }
-        headerView.setVisibility(View.VISIBLE);
-    }
-
-    @Override
-    protected void hideHeaderView(View headerView, HeaderTransformer headerTransformer) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            super.hideHeaderView(headerView, headerTransformer);
-            return;
-        }
-
-        // Hide Header
-        if (mHeaderOutAnimation != null) {
-            mHeaderOutAnimation.setAnimationListener(new AnimationCallback(headerView, headerTransformer));
-            headerView.startAnimation(mHeaderOutAnimation);
-            // HeaderTransformer.onReset() is called once the animation has finished
-        } else {
-            // As we're not animating, hide the header + call the header transformer now
-            headerView.setVisibility(View.GONE);
-            headerTransformer.onReset();
-        }
-    }
-
-    public static class Options extends uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.Options {
+    public static class AbsOptions extends Options {
 
         /**
          * The anim resource ID which should be started when the header is being hidden.
          */
-        public int headerOutAnimation = DEFAULT_ANIM_HEADER_OUT;
+        public int headerOutAnimationPreHoneycomb = DEFAULT_ANIM_HEADER_OUT;
 
         /**
          * The anim resource ID which should be started when the header is being shown.
          */
-        public int headerInAnimation = DEFAULT_ANIM_HEADER_IN;
+        public int headerInAnimationPreHoneycomb = DEFAULT_ANIM_HEADER_IN;
     }
 
     public static class AbsEnvironmentDelegate extends EnvironmentDelegate {
@@ -149,6 +110,77 @@ public class PullToRefreshAttacher extends
 
     public static class AbsDefaultHeaderTransformer extends DefaultHeaderTransformer {
 
+        private Animation mHeaderInAnimation, mHeaderOutAnimation;
+
+        @Override
+        public void onViewCreated(Activity activity, View headerView, Options options) {
+            super.onViewCreated(activity, headerView, options);
+
+            int animIn = DEFAULT_ANIM_HEADER_IN;
+            int animOut = DEFAULT_ANIM_HEADER_OUT;
+
+            // If our AbsOptions instance is a Abs version, get the values out
+            if (options instanceof AbsOptions) {
+                animIn = ((AbsOptions) options).headerInAnimationPreHoneycomb;
+                animOut = ((AbsOptions) options).headerOutAnimationPreHoneycomb;
+            }
+
+            mHeaderInAnimation = AnimationUtils.loadAnimation(activity, animIn);
+            mHeaderOutAnimation = AnimationUtils.loadAnimation(activity, animOut);
+        }
+
+        @Override
+        public void showHeaderView() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                super.showHeaderView();
+                return;
+            }
+
+            if (mHeaderView.getVisibility() != View.VISIBLE) {
+                if (mHeaderInAnimation != null) {
+                    mHeaderView.startAnimation(mHeaderInAnimation);
+                }
+                mHeaderView.setVisibility(View.VISIBLE);
+            }
+        }
+
+        @Override
+        public void hideHeaderView() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                super.hideHeaderView();
+                return;
+            }
+
+            // Hide Header
+            if (mHeaderView.getVisibility() == View.VISIBLE) {
+                if (mHeaderOutAnimation != null) {
+                    mHeaderOutAnimation
+                            .setAnimationListener(new AnimationCallback(mHeaderView, this));
+                    mHeaderView.startAnimation(mHeaderOutAnimation);
+                    // onReset() is called once the animation has finished
+                } else {
+                    // As we're not animating, hide the header + call the header transformer now
+                    mHeaderView.setVisibility(View.GONE);
+                    onReset();
+                }
+            }
+        }
+
+        @Override
+        public void onRefreshMinimized() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                super.onRefreshMinimized();
+                return;
+            }
+
+            // Here we fade out most of the header, leaving just the progress bar
+            if (mContentLayout != null) {
+                mContentLayout.startAnimation(AnimationUtils
+                        .loadAnimation(mContentLayout.getContext(), R.anim.fade_out));
+                mContentLayout.setVisibility(View.INVISIBLE);
+            }
+        }
+
         @Override
         protected Drawable getActionBarBackground(Context context) {
             // Super handles ICS+ anyway...
@@ -161,9 +193,9 @@ public class PullToRefreshAttacher extends
             context.getTheme().resolveAttribute(R.attr.actionBarStyle, outValue, true);
             // Now get action bar style values...
             TypedArray abStyle = context.getTheme().obtainStyledAttributes(outValue.resourceId,
-                    SherlockActionBar);
+                    R.styleable.SherlockActionBar);
             try {
-                return abStyle.getDrawable(SherlockActionBar_background);
+                return abStyle.getDrawable(R.styleable.SherlockActionBar_background);
             } finally {
                 abStyle.recycle();
             }
@@ -176,16 +208,17 @@ public class PullToRefreshAttacher extends
                 return super.getActionBarSize(context);
             }
 
-            TypedArray values = context.getTheme().obtainStyledAttributes(SherlockTheme);
+            TypedArray values = context.getTheme()
+                    .obtainStyledAttributes(R.styleable.SherlockTheme);
             try {
-                return values.getDimensionPixelSize(SherlockTheme_actionBarSize, 0);
+                return values.getDimensionPixelSize(R.styleable.SherlockTheme_actionBarSize, 0);
             } finally {
                 values.recycle();
             }
         }
     }
 
-    private static class AnimationCallback implements Animation.AnimationListener {
+    static class AnimationCallback implements Animation.AnimationListener {
         private final View mHeaderView;
         private final HeaderTransformer mHeaderTransformer;
 

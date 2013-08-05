@@ -116,12 +116,14 @@ public class GridViewActivity extends Activity
      * Here's a customised header transformer which displays the scroll progress as text.
      */
     static class CustomisedHeaderTransformer extends PullToRefreshAttacher.HeaderTransformer {
-
+        private View mHeaderView;
         private TextView mMainTextView;
         private TextView mProgressTextView;
 
         @Override
-        public void onViewCreated(Activity activity, View headerView) {
+        public void onViewCreated(Activity activity, View headerView,
+                PullToRefreshAttacher.Options options) {
+            mHeaderView = headerView;
             mMainTextView = (TextView) headerView.findViewById(R.id.ptr_text);
             mProgressTextView = (TextView) headerView.findViewById(R.id.ptr_text_secondary);
         }
@@ -155,6 +157,16 @@ public class GridViewActivity extends Activity
         @Override
         public void onRefreshMinimized() {
             // In this header transformer, we will ignore this call
+        }
+
+        @Override
+        public void showHeaderView() {
+            mHeaderView.setVisibility(View.VISIBLE);
+        }
+
+        @Override
+        public void hideHeaderView() {
+            mHeaderView.setVisibility(View.GONE);
         }
     }
 }
